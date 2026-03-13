@@ -2,7 +2,6 @@ from enum import Enum, auto
 from dataclasses import dataclass
 from typing import List
 
-
 class TokenType(Enum):
     # Symbols
     LEFT_PAREN = auto()
@@ -48,7 +47,6 @@ class TokenType(Enum):
     # Identifiers (variables, class names, method names)
     IDENTIFIER = auto()
 
-
 # Maps reserved word strings to their TokenType.
 # When we read a word like "while", we check this dict to see if it's
 # a keyword. If it's not found here, it's treated as an IDENTIFIER.
@@ -73,7 +71,6 @@ KEYWORDS = {
     "call": TokenType.CALL,
 }
 
-
 # Represents a single token produced by the tokenizer.
 # Stores the type of token, its raw text value, and where it
 # appeared in the source file (line and column) for error reporting.
@@ -87,7 +84,6 @@ class Token:
     def __repr__(self):
         return f"Token({self.token_type.name}, {self.value!r}, line={self.line}, col={self.col})"
 
-
 # Custom exception for tokenizer errors.
 # Includes the line and column where the error occurred so the user
 # can find the problem in their source code.
@@ -96,7 +92,6 @@ class TokenizerError(Exception):
         super().__init__(f"Tokenizer error at line {line}, col {col}: {message}")
         self.line = line
         self.col = col
-
 
 class Tokenizer:
     """
@@ -295,14 +290,12 @@ class Tokenizer:
 
         return self.tokens
 
-
 # Convenience function so other modules (like a future parser) can just call:
 #   from tokenizer import tokenize
 #   tokens = tokenize(source_code)
 def tokenize(source: str) -> List[Token]:
     """Takes a source code string and returns a list of Tokens."""
     return Tokenizer(source).tokenize()
-
 
 # Entry point: run the tokenizer on a file from the command line.
 # Usage: python tokenizer.py <source_file>
