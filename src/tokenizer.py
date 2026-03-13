@@ -113,13 +113,18 @@ class Tokenizer:
         self.tokens: List[Token] = []  # Accumulated list of tokens
 
     def peek(self) -> str | None:
-        """
-        Returns the current character without consuming it.
-        Returns None if we've reached the end of the source.
-        """
-        if self.pos < len(self.source):
-            return self.source[self.pos]
-        return None
+        return self.source[self.pos] if self.pos < len(self.source) else None
+
+    def peek_next(self) -> str | None:
+        nxt = self.pos + 1
+        return self.source[nxt] if nxt < len(self.source) else None
+
+    def match(self, expected: str) -> bool:
+        """If current char equals expected, consume it and return True."""
+        if self.peek() == expected:
+            self.advance()
+            return True
+        return False
 
     def advance(self) -> str:
         """
@@ -143,6 +148,11 @@ class Tokenizer:
         separate tokens.
         """
         while self.pos < len(self.source) and self.source[self.pos] in " \t\n\r":
+            self.advance()
+        
+    def skip_line_comment(self):
+        # assumes current char is '/' and next char is '/'
+        while self.pos < len(self.source) and self.source[self.pos] != "\n":
             self.advance()
 
     def read_string(self) -> Token:
@@ -253,8 +263,14 @@ class Tokenizer:
                 self.advance()
                 self.tokens.append(Token(TokenType.MULTIPLY, "*", start_line, start_col))
             elif ch == "/":
-                self.advance()
-                self.tokens.append(Token(TokenType.DIVIDE, "/", start_line, start_col))
+                # comment or divide
+                if self.peek_next() == "/":
+                    self.advance()  # consume first '/'
+                    self.advance()  # consume second '/'
+                    self.skip_line_comment()
+                else:
+                    self.advance()
+                    self.tokens.append(Token(TokenType.DIVIDE, "/", start_line, start_col))
             elif ch == "<":
                 self.advance()
                 self.tokens.append(Token(TokenType.LESS_THAN, "<", start_line, start_col))
@@ -262,8 +278,7 @@ class Tokenizer:
             # '=' needs lookahead: could be '=' (assignment) or '==' (equality check)
             elif ch == "=":
                 self.advance()
-                if self.pos < len(self.source) and self.source[self.pos] == "=":
-                    self.advance()  # consume the second '='
+                if self.match("="):
                     self.tokens.append(Token(TokenType.DOUBLE_EQUALS, "==", start_line, start_col))
                 else:
                     self.tokens.append(Token(TokenType.ASSIGN, "=", start_line, start_col))
