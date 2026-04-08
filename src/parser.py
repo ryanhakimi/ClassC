@@ -264,3 +264,88 @@ class Parser:
                 f"but got {token.token_type.name}",
                 token,
             )
+
+ # Vardec parsing
+
+    def parse_vardec(self) -> VarDecStmt:
+        self.expect(TokenType.LEFT_PAREN)
+        self.expect(TokenType.VARDEC)
+        var_type = self.parse_type()
+        var_name = self.expect(TokenType.IDENTIFIER).value
+        self.expect(TokenType.RIGHT_PAREN)
+        return VarDecStmt(var_type, var_name)
+
+ # Statement parsing 
+
+    def parse_statement(self):
+        token = self.peek()
+        if token is None:
+            raise ParseError("Expected statement but reached end of input")
+
+        if token.token_type == TokenType.BREAK:
+            self.advance()
+            return BreakStmt()
+
+        elif token.token_type == TokenType.LEFT_PAREN:
+            if self.pos + 1 >= len(self.tokens):
+                raise ParseError(
+                    "Expected statement content after '(' but reached end of input",
+                    token,
+                )
+            next_token = self.tokens[self.pos + 1]
+
+            if next_token.token_type == TokenType.VARDEC:
+                return self.parse_vardec()
+            elif next_token.token_type == TokenType.ASSIGN:
+                return self._parse_assignment()
+            elif next_token.token_type == TokenType.WHILE:
+                return self._parse_while()
+            elif next_token.token_type == TokenType.IF:
+                return self._parse_if()
+            elif next_token.token_type == TokenType.RETURN:
+                return self._parse_return()
+            else:
+                exp = self.parse_expression()
+                return ExpStmt(exp)
+        else:
+            raise ParseError(
+                f"Expected statement but got {token.token_type.name}", token
+            )
+
+    def _parse_assignment(self) -> AssignStmt:
+        self.expect(TokenType.LEFT_PAREN)
+        self.expect(TokenType.ASSIGN)
+        var_name = self.expect(TokenType.IDENTIFIER).value
+        exp = self.parse_expression()
+        self.expect(TokenType.RIGHT_PAREN)
+        return AssignStmt(var_name, exp)
+
+    def _parse_while(self) -> WhileStmt:
+        self.expect(TokenType.LEFT_PAREN)
+        self.expect(TokenType.WHILE)
+        condition = self.parse_expression()
+        body = []
+        while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
+            body.append(self.parse_statement())
+        self.expect(TokenType.RIGHT_PAREN)
+        return WhileStmt(condition, body)
+
+    def _parse_if(self) -> IfStmt:
+        self.expect(TokenType.LEFT_PAREN)
+        self.expect(TokenType.IF)
+        condition = self.parse_expression()
+        then_stmt = self.parse_statement()
+        else_stmt = None
+        if self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
+            else_stmt = self.parse_statement()
+        self.expect(TokenType.RIGHT_PAREN)
+        return IfStmt(condition, then_stmt, else_stmt)
+
+    def _parse_return(self) -> ReturnStmt:
+        self.expect(TokenType.LEFT_PAREN)
+        self.expect(TokenType.RETURN)
+        exp = None
+        if self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
+            exp = self.parse_expression()
+        self.expect(TokenType.RIGHT_PAREN)
+        return ReturnStmt(exp)
