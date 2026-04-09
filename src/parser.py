@@ -349,3 +349,96 @@ class Parser:
             exp = self.parse_expression()
         self.expect(TokenType.RIGHT_PAREN)
         return ReturnStmt(exp)
+
+    def parse_method(self) -> MethodDef:
+        self.expect(TokenType.LEFT_PAREN)
+        self.expect(TokenType.METHOD)
+        method_name = self.expect(TokenType.IDENTIFIER).value
+        # Parameter list: ( vardec* )
+        self.expect(TokenType.LEFT_PAREN)
+        params = []
+        while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
+            params.append(self.parse_vardec())
+        self.expect(TokenType.RIGHT_PAREN)
+        # Return type
+        return_type = self.parse_type()
+        # Body: stmt*
+        body = []
+        while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
+            body.append(self.parse_statement())
+        self.expect(TokenType.RIGHT_PAREN)
+        return MethodDef(method_name, params, return_type, body)
+
+    def parse_constructor(self) -> Constructor:
+        self.expect(TokenType.LEFT_PAREN)
+        self.expect(TokenType.INIT)
+        # Parameter list: ( vardec* )
+        self.expect(TokenType.LEFT_PAREN)
+        params = []
+        while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
+            params.append(self.parse_vardec())
+        self.expect(TokenType.RIGHT_PAREN)
+        # Optional super call: ( super exp* )
+        super_args = None
+        if (
+            self.peek()
+            and self.peek().token_type == TokenType.LEFT_PAREN
+            and self.pos + 1 < len(self.tokens)
+            and self.tokens[self.pos + 1].token_type == TokenType.SUPER
+        ):
+            self.expect(TokenType.LEFT_PAREN)
+            self.expect(TokenType.SUPER)
+            super_args = []
+            while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
+                super_args.append(self.parse_expression())
+            self.expect(TokenType.RIGHT_PAREN)
+        # Body: stmt*
+        body = []
+        while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
+            body.append(self.parse_statement())
+        self.expect(TokenType.RIGHT_PAREN)
+        return Constructor(params, super_args, body)
+
+    def parse_class(self) -> ClassDef:
+        self.expect(TokenType.LEFT_PAREN)
+        self.expect(TokenType.CLASS)
+        class_name = self.expect(TokenType.IDENTIFIER).value
+        # Optional parent class
+        parent = None
+        if self.peek() and self.peek().token_type == TokenType.IDENTIFIER:
+            parent = self.advance().value
+        # Field list: ( vardec* )
+        self.expect(TokenType.LEFT_PAREN)
+        fields = []
+        while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
+            fields.append(self.parse_vardec())
+        self.expect(TokenType.RIGHT_PAREN)
+        # Constructor
+        constructor = self.parse_constructor()
+        # Methods: methoddef*
+        methods = []
+        while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
+            methods.append(self.parse_method())
+        self.expect(TokenType.RIGHT_PAREN)
+        return ClassDef(class_name, parent, fields, constructor, methods)
+
+    def parse_program(self) -> Program:
+        classes = []
+        while (
+            self.peek()
+            and self.peek().token_type == TokenType.LEFT_PAREN
+            and self.pos + 1 < len(self.tokens)
+            and self.tokens[self.pos + 1].token_type == TokenType.CLASS
+        ):
+            classes.append(self.parse_class())
+        statements = []
+        while not self.at_end():
+            statements.append(self.parse_statement())
+        if not statements:
+            raise ParseError("Program must have at least one statement")
+        return Program(classes, statements)
+
+
+def parse(source: str) -> Program:
+    tokens = tokenize(source)
+    return Parser(tokens).parse_program()
