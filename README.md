@@ -1,6 +1,19 @@
 # ClassC
 Comp 430 ClassC Project
 
+## Project Structure
+```
+ClassC/
+├── README.md
+├── requirements.txt
+├── src/
+│   ├── tokenizer.py
+│   └── parser.py
+└── tests/
+    ├── test_tokenizer.py
+    └── test_parser.py
+```
+
 ## Setup
 
 1. Create a virtual environment and activate it:
