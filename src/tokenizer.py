@@ -42,6 +42,7 @@ class TokenType(Enum):
 
     # Literals
     INTEGER_LITERAL = auto()
+    STRING_LITERAL = auto()
 
     # Identifiers (variables, class names, method names)
     IDENTIFIER = auto()
@@ -127,6 +128,39 @@ class Tokenizer:
             )
         return Token(TokenType.INTEGER_LITERAL, "".join(digits), start_line, start_col)
 
+    def read_string(self) -> Token:
+        start_line = self.line
+        start_col = self.col
+        self.advance()  # consume opening "
+        chars = []
+        escapes = {"n": "\n", "t": "\t", "\\": "\\", '"': '"'}
+        while self.pos < len(self.source) and self.source[self.pos] != '"':
+            ch = self.source[self.pos]
+            if ch == "\\":
+                self.advance()
+                if self.pos >= len(self.source):
+                    raise TokenizerError(
+                        "Unterminated escape in string literal", self.line, self.col
+                    )
+                esc = self.advance()
+                if esc not in escapes:
+                    raise TokenizerError(
+                        f"Unknown escape: \\{esc}", self.line, self.col
+                    )
+                chars.append(escapes[esc])
+            elif ch == "\n":
+                raise TokenizerError(
+                    "Unterminated string literal", start_line, start_col
+                )
+            else:
+                chars.append(self.advance())
+        if self.pos >= len(self.source):
+            raise TokenizerError(
+                "Unterminated string literal", start_line, start_col
+            )
+        self.advance()  # consume closing "
+        return Token(TokenType.STRING_LITERAL, "".join(chars), start_line, start_col)
+
     def read_identifier_or_keyword(self) -> Token:
         start_line = self.line
         start_col = self.col
@@ -174,6 +208,8 @@ class Tokenizer:
                     self.tokens.append(Token(TokenType.DOUBLE_EQUALS, "==", start_line, start_col))
                 else:
                     self.tokens.append(Token(TokenType.ASSIGN, "=", start_line, start_col))
+            elif ch == '"':
+                self.tokens.append(self.read_string())
             elif ch.isdigit():
                 self.tokens.append(self.read_integer())
             elif ch.isalpha() or ch == "_":
