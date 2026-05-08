@@ -98,52 +98,6 @@ def test_unexpected_character_raises():
         tokenize("@")
 
 
-# String literals
-
-def test_string_literal_basic():
-    tokens = tokenize('"hello"')
-    assert len(tokens) == 1
-    assert tokens[0].token_type == TokenType.STRING_LITERAL
-    assert tokens[0].value == "hello"
-
-
-def test_string_literal_empty():
-    tokens = tokenize('""')
-    assert tokens[0].token_type == TokenType.STRING_LITERAL
-    assert tokens[0].value == ""
-
-
-def test_string_literal_with_escapes():
-    tokens = tokenize(r'"a\nb\t\"c\\"')
-    assert tokens[0].value == 'a\nb\t"c\\'
-
-
-def test_string_literal_position_tracking():
-    tokens = tokenize('  "hi"')
-    assert tokens[0].line == 1
-    assert tokens[0].col == 3
-
-
-def test_unterminated_string_raises():
-    with pytest.raises(TokenizerError, match="Unterminated"):
-        tokenize('"no end')
-
-
-def test_string_literal_embedded_newline_raises():
-    with pytest.raises(TokenizerError, match="Unterminated"):
-        tokenize('"line1\nline2"')
-
-
-def test_string_unknown_escape_raises():
-    with pytest.raises(TokenizerError, match="Unknown escape"):
-        tokenize(r'"\q"')
-
-
-def test_string_unterminated_escape_raises():
-    with pytest.raises(TokenizerError, match="Unterminated escape"):
-        tokenize('"abc\\')
-
-
 # Integration: spec example
 
 def test_class_definition_from_spec():

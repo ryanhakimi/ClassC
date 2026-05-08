@@ -2,6 +2,7 @@ from enum import Enum, auto
 from dataclasses import dataclass
 from typing import List
 
+
 class TokenType(Enum):
     # Symbols
     LEFT_PAREN = auto()
@@ -47,6 +48,7 @@ class TokenType(Enum):
     # Identifiers (variables, class names, method names)
     IDENTIFIER = auto()
 
+
 KEYWORDS = {
     "Int": TokenType.INT_TYPE,
     "Boolean": TokenType.BOOLEAN_TYPE,
@@ -68,6 +70,7 @@ KEYWORDS = {
     "call": TokenType.CALL,
 }
 
+
 @dataclass
 class Token:
     token_type: TokenType
@@ -78,11 +81,13 @@ class Token:
     def __repr__(self):
         return f"Token({self.token_type.name}, {self.value!r}, line={self.line}, col={self.col})"
 
+
 class TokenizerError(Exception):
     def __init__(self, message: str, line: int, col: int):
         super().__init__(f"Tokenizer error at line {line}, col {col}: {message}")
         self.line = line
         self.col = col
+
 
 class Tokenizer:
     def __init__(self, source: str):
@@ -124,42 +129,40 @@ class Tokenizer:
         if self.pos < len(self.source) and (self.source[self.pos].isalpha() or self.source[self.pos] == "_"):
             raise TokenizerError(
                 f"Invalid character '{self.source[self.pos]}' after integer literal",
-                self.line, self.col,
+                self.line,
+                self.col,
             )
         return Token(TokenType.INTEGER_LITERAL, "".join(digits), start_line, start_col)
 
     def read_string(self) -> Token:
         start_line = self.line
         start_col = self.col
-        self.advance()  # consume opening "
+        self.advance()
         chars = []
-        escapes = {"n": "\n", "t": "\t", "\\": "\\", '"': '"'}
-        while self.pos < len(self.source) and self.source[self.pos] != '"':
-            ch = self.source[self.pos]
+        while self.pos < len(self.source):
+            ch = self.advance()
+            if ch == '"':
+                return Token(TokenType.STRING_LITERAL, "".join(chars), start_line, start_col)
             if ch == "\\":
-                self.advance()
-                if self.pos >= len(self.source):
-                    raise TokenizerError(
-                        "Unterminated escape in string literal", self.line, self.col
-                    )
-                esc = self.advance()
-                if esc not in escapes:
-                    raise TokenizerError(
-                        f"Unknown escape: \\{esc}", self.line, self.col
-                    )
-                chars.append(escapes[esc])
-            elif ch == "\n":
-                raise TokenizerError(
-                    "Unterminated string literal", start_line, start_col
-                )
-            else:
-                chars.append(self.advance())
-        if self.pos >= len(self.source):
-            raise TokenizerError(
-                "Unterminated string literal", start_line, start_col
-            )
-        self.advance()  # consume closing "
-        return Token(TokenType.STRING_LITERAL, "".join(chars), start_line, start_col)
+                next_ch = self.peek()
+                if next_ch is None:
+                    raise TokenizerError("Unterminated escape sequence in string literal", self.line, self.col)
+                escaped = self.advance()
+                escapes = {
+                    'n': '\n',
+                    't': '\t',
+                    'r': '\r',
+                    '"': '"',
+                    '\\': '\\',
+                }
+                if escaped not in escapes:
+                    raise TokenizerError(f"Invalid escape sequence \\{escaped}", self.line, self.col)
+                chars.append(escapes[escaped])
+                continue
+            if ch == "\n":
+                raise TokenizerError("Unterminated string literal", start_line, start_col)
+            chars.append(ch)
+        raise TokenizerError("Unterminated string literal", start_line, start_col)
 
     def read_identifier_or_keyword(self) -> Token:
         start_line = self.line
@@ -219,8 +222,10 @@ class Tokenizer:
 
         return self.tokens
 
+
 def tokenize(source: str) -> List[Token]:
     return Tokenizer(source).tokenize()
+
 
 if __name__ == "__main__":
     import sys

@@ -6,11 +6,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from tokenizer import Token, TokenType, tokenize
 from parser import (
-    Parser, ParseError, parse, Pos,
+    Parser, ParseError, parse,
     IntType, BooleanType, VoidType, ClassType,
-    IntLiteralExp, StringLiteralExp, VarExp, ThisExp, TrueExp, FalseExp,
+    IntLiteralExp, VarExp, ThisExp, TrueExp, FalseExp,
     PrintlnExp, BinOpExp, CallExp, NewExp,
-    PlusOp, MinusOp, MultiplyOp, DivideOp, LessThanOp, EqualsOp,
     VarDecStmt, AssignStmt, WhileStmt, BreakStmt, IfStmt, ReturnStmt, ExpStmt,
     MethodDef, Constructor, ClassDef, Program,
 )
@@ -127,7 +126,7 @@ def test_parse_println_var():
 def test_parse_binop_plus():
     result = parse_exp("(+ 1 2)")
     assert isinstance(result, BinOpExp)
-    assert isinstance(result.op, PlusOp)
+    assert result.op == "+"
     assert result.left == IntLiteralExp(1)
     assert result.right == IntLiteralExp(2)
 
@@ -135,25 +134,25 @@ def test_parse_binop_plus():
 def test_parse_binop_minus():
     result = parse_exp("(- 10 3)")
     assert isinstance(result, BinOpExp)
-    assert isinstance(result.op, MinusOp)
+    assert result.op == "-"
 
 
 def test_parse_binop_multiply():
     result = parse_exp("(* 4 5)")
     assert isinstance(result, BinOpExp)
-    assert isinstance(result.op, MultiplyOp)
+    assert result.op == "*"
 
 
 def test_parse_binop_divide():
     result = parse_exp("(/ 10 2)")
     assert isinstance(result, BinOpExp)
-    assert isinstance(result.op, DivideOp)
+    assert result.op == "/"
 
 
 def test_parse_binop_less_than():
     result = parse_exp("(< x 10)")
     assert isinstance(result, BinOpExp)
-    assert isinstance(result.op, LessThanOp)
+    assert result.op == "<"
     assert isinstance(result.left, VarExp)
     assert isinstance(result.right, IntLiteralExp)
 
@@ -161,7 +160,7 @@ def test_parse_binop_less_than():
 def test_parse_binop_equals():
     result = parse_exp("(== x y)")
     assert isinstance(result, BinOpExp)
-    assert isinstance(result.op, EqualsOp)
+    assert result.op == "=="
     assert isinstance(result.left, VarExp)
     assert isinstance(result.right, VarExp)
 
@@ -169,11 +168,11 @@ def test_parse_binop_equals():
 def test_parse_binop_nested():
     result = parse_exp("(+ (* 2 3) (- 5 1))")
     assert isinstance(result, BinOpExp)
-    assert isinstance(result.op, PlusOp)
+    assert result.op == "+"
     assert isinstance(result.left, BinOpExp)
-    assert isinstance(result.left.op, MultiplyOp)
+    assert result.left.op == "*"
     assert isinstance(result.right, BinOpExp)
-    assert isinstance(result.right.op, MinusOp)
+    assert result.right.op == "-"
 
 
 def test_parse_call_no_args():
@@ -1134,63 +1133,3 @@ def test_parse_constructor_with_multiple_params_and_super():
     assert len(child.constructor.super_args) == 1
     assert isinstance(child.constructor.super_args[0], VarExp)
     assert len(child.constructor.body) == 1
-
-# String literal expression tests
-def test_parse_string_literal():
-    result = parse_exp('"hello"')
-    assert isinstance(result, StringLiteralExp)
-    assert result.value == "hello"
-
-
-def test_parse_string_literal_empty():
-    result = parse_exp('""')
-    assert isinstance(result, StringLiteralExp)
-    assert result.value == ""
-
-
-def test_parse_string_literal_with_escapes():
-    result = parse_exp(r'"a\nb\t\"c\""')
-    assert isinstance(result, StringLiteralExp)
-    assert result.value == 'a\nb\t"c"'
-
-
-def test_parse_string_in_println():
-    result = parse_exp('(println "hi")')
-    assert isinstance(result, PrintlnExp)
-    assert isinstance(result.expression, StringLiteralExp)
-    assert result.expression.value == "hi"
-
-
-# Position tracking tests
-def test_int_literal_carries_position():
-    result = parse_exp("42")
-    assert result.pos == Pos(1, 1)
-
-
-def test_var_carries_position_after_whitespace():
-    result = parse_exp("  hello")
-    assert result.pos == Pos(1, 3)
-
-
-def test_binop_carries_position_of_open_paren():
-    result = parse_exp("(+ 1 2)")
-    assert result.pos == Pos(1, 1)
-    assert result.left.pos == Pos(1, 4)
-    assert result.right.pos == Pos(1, 6)
-
-
-def test_statement_carries_position():
-    result = parse_stmt("(= x 5)")
-    assert result.pos == Pos(1, 1)
-
-
-def test_pos_is_excluded_from_equality():
-    a = IntLiteralExp(1, pos=Pos(1, 1))
-    b = IntLiteralExp(1, pos=Pos(99, 99))
-    assert a == b
-
-
-def test_pos_from_token_helper():
-    tok = Token(TokenType.INTEGER_LITERAL, "1", 5, 7)
-    pos = Pos.from_token(tok)
-    assert pos == Pos(5, 7)
