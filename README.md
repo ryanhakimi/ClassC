@@ -1,7 +1,9 @@
 # ClassC
 
-COMP 430 ClassC compiler — a small object-oriented language with classes,
+COMP 430 ClassC compiler is a small object-oriented language with classes,
 inheritance, and method overriding, compiled to C.
+
+Created by Ryan, Andrew, Courtney, and Ethan
 
 ## Project Structure
 
