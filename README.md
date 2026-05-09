@@ -78,7 +78,7 @@ Compile and run:
 ```bash
 python src/compiler.py compile examples/animals.classc out.c
 gcc out.c -o out      # use `gcc out.c -o out.exe` on Windows/MinGW
-./out                 # prints: 1
+./out                 # prints: 2
 ```
 
 To reject ill-typed input, point `typecheck` at a bad program:

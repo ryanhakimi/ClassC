@@ -116,6 +116,8 @@ def test_typecheck_rejects_break_outside_loop():
 
 def test_typecheck_supports_string_literals():
     source = '(println "hello")'
+    typecheck(source)
+
 
 def test_typecheck_rejects_println_object():
     source = """
@@ -129,7 +131,6 @@ def test_typecheck_rejects_println_object():
     """
     with pytest.raises(TypecheckError, match="println"):
         typecheck(source)
-    typecheck(source)
 
 def test_typecheck_rejects_ambiguous_overload_resolution():
     source = """

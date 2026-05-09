@@ -5,12 +5,18 @@ from parser import (
     BreakStmt,
     CallExp,
     ClassType,
+    DivideOp,
+    DoubleEqualsOp,
     ExpStmt,
     FalseExp,
     IfStmt,
     IntLiteralExp,
     IntType,
+    LessThanOp,
+    MinusOp,
+    MultiplyOp,
     NewExp,
+    PlusOp,
     PrintlnExp,
     ReturnStmt,
     StringLiteralExp,
@@ -96,9 +102,17 @@ class CodeGenerator:
         return instantiated
 
     def _find_used_print_types(self):
-        """Find which print helper functions are actually used."""
+        """Find which print helper functions are actually used.
+
+        _infer_expression_type relies on self.current_class and
+        self.current_locals, so we must set those for every scope we visit
+        (main, each constructor body, each method body) and we must update
+        current_locals as VarDecStmts appear, just like _emit_* does.
+        """
         used = set()
-        
+        saved_class = self.current_class
+        saved_locals = self.current_locals
+
         def scan_expression(expr):
             if isinstance(expr, PrintlnExp):
                 inner_type = self._infer_expression_type(expr.expression)
@@ -110,6 +124,7 @@ class CodeGenerator:
                     used.add("string")
                 else:
                     used.add("object")
+                scan_expression(expr.expression)
             elif isinstance(expr, BinOpExp):
                 scan_expression(expr.left)
                 scan_expression(expr.right)
@@ -117,10 +132,13 @@ class CodeGenerator:
                 scan_expression(expr.obj)
                 for arg in expr.args:
                     scan_expression(arg)
-        
+            elif isinstance(expr, NewExp):
+                for arg in expr.args:
+                    scan_expression(arg)
+
         def scan_statement(stmt):
             if isinstance(stmt, VarDecStmt):
-                pass
+                self.current_locals[stmt.var_name] = stmt.var_type
             elif isinstance(stmt, AssignStmt):
                 scan_expression(stmt.expression)
             elif isinstance(stmt, ExpStmt):
@@ -137,21 +155,27 @@ class CodeGenerator:
                 scan_expression(stmt.condition)
                 for body_stmt in stmt.body:
                     scan_statement(body_stmt)
-            elif isinstance(stmt, BreakStmt):
-                pass
-        
-        # Scan all statements in main
+
+        # main
+        self.current_class = None
+        self.current_locals = {}
         for stmt in self.program.statements:
             scan_statement(stmt)
-        
-        # Scan all constructor and method bodies
+
+        # constructors and methods
         for class_def in self.program.classes:
+            self.current_class = class_def.name
+            self.current_locals = {p.var_name: p.var_type for p in class_def.constructor.params}
             for stmt in class_def.constructor.body:
                 scan_statement(stmt)
             for method in class_def.methods:
+                self.current_class = class_def.name
+                self.current_locals = {p.var_name: p.var_type for p in method.params}
                 for stmt in method.body:
                     scan_statement(stmt)
-        
+
+        self.current_class = saved_class
+        self.current_locals = saved_locals
         return used
 
     def generate(self):
@@ -174,12 +198,12 @@ class CodeGenerator:
         self._emit("#include <stdlib.h>")
         self._emit("#include <string.h>")
         self._emit("")
-        self._emit("typedef struct Object Object;")
-        self._emit("typedef struct Object_vtable Object_vtable;")
-        self._emit("struct Object { Object_vtable* vtable; };")
-        self._emit("struct Object_vtable { int _unused; };")
-        self._emit("static Object_vtable Object_vtable_instance = {0};")
-        self._emit("")
+        if self.program.classes:
+            self._emit("typedef struct Object Object;")
+            self._emit("typedef struct Object_vtable Object_vtable;")
+            self._emit("struct Object { Object_vtable* vtable; };")
+            self._emit("struct Object_vtable { int _unused; };")
+            self._emit("")
         if "bool" in self.used_print_types:
             self._emit("static void ClassC_print_bool(bool value) {")
             self.indent_level += 1
@@ -281,32 +305,46 @@ class CodeGenerator:
         return "{" + ", ".join(parts) + "}"
 
     def _emit_constructors(self):
-        for class_name, class_info in self.typed_program.classes.items():
-            constructor = class_info.constructor
-            params = self._param_decl_list(constructor.params)
-            self._emit(f"void {class_name}_init({class_name}* self{params})")
-            self._emit("{")
+        for class_def in self.program.classes:
+            class_name = class_def.name
+            class_info = self.classes[class_name]
+            ctor = class_info.constructor
 
-            # Initialize all fields to 0
-            for field_name in class_info.fields:
-                self._emit(f"  self->{field_name} = 0;")
-
-            # Initialize parent vtables
-            parent = class_info.parent
-            while parent is not None:
-                parent_info = self.typed_program.classes[parent]
-                self._emit(f"  ((({parent}*) self)->vtable) = &{parent}_vtable_instance;")
-                parent = parent_info.parent
-
-            # Initialize this class's vtable
-            self._emit(f"  self->vtable = &{class_name}_vtable_instance;")
-
-            # Call body
-            for statement in constructor.body:
+            self._emit(f"static void {class_name}_init({class_name}* self{self._param_list(ctor.params)}) {{")
+            self.indent_level += 1
+            self.current_class = class_name
+            self.current_locals = {param.var_name: param.var_type for param in ctor.params}
+            self.current_self_name = "self"
+            parent = class_info.parent or "Object"
+            if parent != "Object":
+                args = ", ".join(self._compile_expression(arg) for arg in (ctor.super_args or []))
+                if args:
+                    self._emit(f"{parent}_init(({parent}*) self, {args});")
+                else:
+                    self._emit(f"{parent}_init(({parent}*) self);")
+            self._emit(f"{self._object_vtable_lvalue(class_name, 'self')} = (Object_vtable*) &{class_name}_vtable_instance;")
+            for statement in ctor.body:
                 self._emit_statement(statement)
-
+            self.indent_level -= 1
             self._emit("}")
             self._emit("")
+
+            if class_name in self.instantiated_classes:
+                self._emit(f"static {class_name}* new_{class_name}({self._param_decl_list(ctor.params)}) {{")
+                self.indent_level += 1
+                self._emit(f"{class_name}* self = ({class_name}*) malloc(sizeof({class_name}));")
+                self._emit("if (self == NULL) {")
+                self.indent_level += 1
+                self._emit('fprintf(stderr, "Out of memory\\n");')
+                self._emit("exit(1);")
+                self.indent_level -= 1
+                self._emit("}")
+                args = ", ".join(param.var_name for param in ctor.params)
+                self._emit(f"{class_name}_init(self{', ' + args if args else ''});")
+                self._emit("return self;")
+                self.indent_level -= 1
+                self._emit("}")
+                self._emit("")
 
     def _emit_methods(self):
         for class_def in self.program.classes:
@@ -322,9 +360,12 @@ class CodeGenerator:
                 self.current_class = class_name
                 self.current_locals = {param.var_name: param.var_type for param in method_def.params}
                 self.current_self_name = "self"
-                if slot_owner != class_name:
+                uses_self = self._body_uses_this_or_fields(method_def.body)
+                if slot_owner != class_name and uses_self:
                     self.current_self_name = "self_this"
-                    self._emit("(void) self_this;  // silence -Wunused-variable")
+                    self._emit(f"{class_name}* self_this = ({class_name}*) self;")
+                elif not uses_self:
+                    self._emit("(void) self;")
                 for statement in method_def.body:
                     self._emit_statement(statement)
                 if isinstance(method_def.return_type, VoidType) and (not method_def.body or not isinstance(method_def.body[-1], ReturnStmt)):
@@ -332,6 +373,43 @@ class CodeGenerator:
                 self.indent_level -= 1
                 self._emit("}")
                 self._emit("")
+
+    def _body_uses_this_or_fields(self, body):
+        def expr_uses(expr):
+            if isinstance(expr, ThisExp):
+                return True
+            if isinstance(expr, VarExp):
+                return expr.name not in self.current_locals
+            if isinstance(expr, BinOpExp):
+                return expr_uses(expr.left) or expr_uses(expr.right)
+            if isinstance(expr, PrintlnExp):
+                return expr_uses(expr.expression)
+            if isinstance(expr, CallExp):
+                return expr_uses(expr.obj) or any(expr_uses(a) for a in expr.args)
+            if isinstance(expr, NewExp):
+                return any(expr_uses(a) for a in expr.args)
+            return False
+
+        def stmt_uses(stmt):
+            if isinstance(stmt, AssignStmt):
+                if stmt.var_name not in self.current_locals:
+                    return True
+                return expr_uses(stmt.expression)
+            if isinstance(stmt, ExpStmt):
+                return expr_uses(stmt.expression)
+            if isinstance(stmt, ReturnStmt):
+                return stmt.expression is not None and expr_uses(stmt.expression)
+            if isinstance(stmt, IfStmt):
+                return (
+                    expr_uses(stmt.condition)
+                    or stmt_uses(stmt.then_stmt)
+                    or (stmt.else_stmt is not None and stmt_uses(stmt.else_stmt))
+                )
+            if isinstance(stmt, WhileStmt):
+                return expr_uses(stmt.condition) or any(stmt_uses(s) for s in stmt.body)
+            return False
+
+        return any(stmt_uses(s) for s in body)
 
     def _emit_main(self):
         self._emit("int main(void) {")
@@ -412,7 +490,7 @@ class CodeGenerator:
         if isinstance(expression, VarExp):
             return self._compile_lvalue(expression.name)
         if isinstance(expression, BinOpExp):
-            return f"({self._compile_expression(expression.left)} {expression.op} {self._compile_expression(expression.right)})"
+            return f"({self._compile_expression(expression.left)} {self._op_symbol(expression.op)} {self._compile_expression(expression.right)})"
         if isinstance(expression, PrintlnExp):
             inner_type = self._infer_expression_type(expression.expression)
             code = self._compile_expression(expression.expression)
@@ -500,7 +578,7 @@ class CodeGenerator:
         if isinstance(expression, PrintlnExp):
             return VoidType()
         if isinstance(expression, BinOpExp):
-            return BooleanType() if expression.op in {"<", "=="} else IntType()
+            return BooleanType() if isinstance(expression.op, (LessThanOp, DoubleEqualsOp)) else IntType()
         if isinstance(expression, NewExp):
             return ClassType(expression.class_name)
         if isinstance(expression, CallExp):
@@ -591,6 +669,21 @@ class CodeGenerator:
                     for param, info_param in zip(method_def.params, info.params))):
                 return signature
         raise CodegenError(f"Method signature not found for {method_def.name}")
+
+    def _op_symbol(self, op):
+        if isinstance(op, PlusOp):
+            return "+"
+        if isinstance(op, MinusOp):
+            return "-"
+        if isinstance(op, MultiplyOp):
+            return "*"
+        if isinstance(op, DivideOp):
+            return "/"
+        if isinstance(op, LessThanOp):
+            return "<"
+        if isinstance(op, DoubleEqualsOp):
+            return "=="
+        raise CodegenError(f"Unknown operator: {op}")
 
     def _c_type(self, type_node):
         if isinstance(type_node, IntType):

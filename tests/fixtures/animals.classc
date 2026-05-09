@@ -11,6 +11,10 @@
   (method speak () Void
     (return (println 2))))
 
+(vardec Animal a)
+(= a (new Animal))
+(call a speak)
+
 (vardec Animal pet)
 (= pet (new Cat))
 (call pet speak)
