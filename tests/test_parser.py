@@ -11,7 +11,7 @@ from parser import (
     IntLiteralExp, VarExp, ThisExp, TrueExp, FalseExp,
     PrintlnExp, BinOpExp, CallExp, NewExp,
     VarDecStmt, AssignStmt, WhileStmt, BreakStmt, IfStmt, ReturnStmt, ExpStmt,
-    MethodDef, Constructor, ClassDef, Program,
+    MethodDef, Constructor, ClassDef, Program, PlusOp, MinusOp, MultiplyOp, DivideOp, LessThanOp, DoubleEqualsOp,
 )
 
 
@@ -126,7 +126,7 @@ def test_parse_println_var():
 def test_parse_binop_plus():
     result = parse_exp("(+ 1 2)")
     assert isinstance(result, BinOpExp)
-    assert result.op == "+"
+    assert isinstance(result.op, PlusOp)
     assert result.left == IntLiteralExp(1)
     assert result.right == IntLiteralExp(2)
 
@@ -134,25 +134,25 @@ def test_parse_binop_plus():
 def test_parse_binop_minus():
     result = parse_exp("(- 10 3)")
     assert isinstance(result, BinOpExp)
-    assert result.op == "-"
+    assert isinstance(result.op, MinusOp)
 
 
 def test_parse_binop_multiply():
     result = parse_exp("(* 4 5)")
     assert isinstance(result, BinOpExp)
-    assert result.op == "*"
+    assert isinstance(result.op, MultiplyOp)
 
 
 def test_parse_binop_divide():
     result = parse_exp("(/ 10 2)")
     assert isinstance(result, BinOpExp)
-    assert result.op == "/"
+    assert isinstance(result.op, DivideOp)
 
 
 def test_parse_binop_less_than():
     result = parse_exp("(< x 10)")
     assert isinstance(result, BinOpExp)
-    assert result.op == "<"
+    assert isinstance(result.op, LessThanOp)
     assert isinstance(result.left, VarExp)
     assert isinstance(result.right, IntLiteralExp)
 
@@ -160,7 +160,7 @@ def test_parse_binop_less_than():
 def test_parse_binop_equals():
     result = parse_exp("(== x y)")
     assert isinstance(result, BinOpExp)
-    assert result.op == "=="
+    assert isinstance(result.op, DoubleEqualsOp)
     assert isinstance(result.left, VarExp)
     assert isinstance(result.right, VarExp)
 
@@ -168,11 +168,11 @@ def test_parse_binop_equals():
 def test_parse_binop_nested():
     result = parse_exp("(+ (* 2 3) (- 5 1))")
     assert isinstance(result, BinOpExp)
-    assert result.op == "+"
+    assert isinstance(result.op, PlusOp)
     assert isinstance(result.left, BinOpExp)
-    assert result.left.op == "*"
+    assert isinstance(result.left.op, MultiplyOp)
     assert isinstance(result.right, BinOpExp)
-    assert result.right.op == "-"
+    assert isinstance(result.right.op, MinusOp)
 
 
 def test_parse_call_no_args():
