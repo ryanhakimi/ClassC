@@ -5,6 +5,12 @@ from parser import (
     AssignStmt,
     BinOpExp,
     BooleanType,
+    PlusOp,
+    MinusOp,
+    MultiplyOp,
+    DivideOp,
+    LessThanOp,
+    DoubleEqualsOp,
     BreakStmt,
     CallExp,
     ClassDef,
@@ -69,7 +75,15 @@ class TypedProgram:
 
 
 class TypecheckError(Exception):
-    pass
+    def __init__(self, message: str, pos=None):
+        if pos is not None:
+            super().__init__(
+                f"Typecheck error at line {pos.line}, col {pos.col}: {message}"
+            )
+        else:
+            super().__init__(f"Typecheck error: {message}")
+
+        self.pos = pos
 
 
 class TypeEnvironment:
@@ -243,11 +257,11 @@ class TypeChecker:
         if isinstance(statement, VarDecStmt):
             self._validate_type_exists(statement.var_type)
             if isinstance(statement.var_type, VoidType):
-                raise TypecheckError(f"Variable '{statement.var_name}' cannot have type Void")
+                raise TypecheckError(f"Variable '{statement.var_name}' cannot have type Void", statement.pos)
             if statement.var_name in env.variables:
-                raise TypecheckError(f"Duplicate variable declaration '{statement.var_name}'")
+                raise TypecheckError(f"Duplicate variable declaration '{statement.var_name}'", statement.pos)
             if current_class and statement.var_name in self._all_fields(current_class.name):
-                raise TypecheckError(f"Local variable '{statement.var_name}' shadows a field name")
+                raise TypecheckError(f"Local variable '{statement.var_name}' shadows a field name", statement.pos)
             next_env = env.copy()
             next_env.variables[statement.var_name] = statement.var_type
             return next_env
@@ -256,7 +270,7 @@ class TypeChecker:
             target_type, is_field = self._resolve_variable_type(statement.var_name, env, current_class)
             value_type = self._type_of_expression(statement.expression, env, current_class, allow_uninitialized_fields=in_constructor)
             if not self._is_subtype(value_type, target_type):
-                raise TypecheckError(f"Cannot assign value of type {self._type_name(value_type)} to '{statement.var_name}'")
+                raise TypecheckError(f"Cannot assign value of type {self._type_name(value_type)} to '{statement.var_name}'", statement.pos)
             next_env = env.copy()
             if not is_field:
                 next_env.initialized.add(statement.var_name)
@@ -265,7 +279,7 @@ class TypeChecker:
         if isinstance(statement, WhileStmt):
             condition_type = self._type_of_expression(statement.condition, env, current_class, allow_uninitialized_fields=in_constructor)
             if not isinstance(condition_type, BooleanType):
-                raise TypecheckError("While condition must have type Boolean")
+                raise TypecheckError("While condition must have type Boolean", statement.pos)
             loop_env = env.copy()
             loop_env.inside_loop = True
             for inner in statement.body:
@@ -274,13 +288,13 @@ class TypeChecker:
 
         if isinstance(statement, BreakStmt):
             if not env.inside_loop:
-                raise TypecheckError("break can only be used inside a while loop")
+                raise TypecheckError("break can only be used inside a while loop", statement.pos)
             return env.copy()
 
         if isinstance(statement, IfStmt):
             condition_type = self._type_of_expression(statement.condition, env, current_class, allow_uninitialized_fields=in_constructor)
             if not isinstance(condition_type, BooleanType):
-                raise TypecheckError("If condition must have type Boolean")
+                raise TypecheckError("If condition must have type Boolean", statement.pos)
             then_env = self._check_statement(statement.then_stmt, env.copy(), current_class, expected_return_type, in_constructor)
             if statement.else_stmt is not None:
                 else_env = self._check_statement(statement.else_stmt, env.copy(), current_class, expected_return_type, in_constructor)
@@ -294,14 +308,15 @@ class TypeChecker:
                 if statement.expression is not None:
                     actual_type = self._type_of_expression(statement.expression, env, current_class, allow_uninitialized_fields=in_constructor)
                     if not isinstance(actual_type, VoidType):
-                        raise TypecheckError("Void function cannot return a non-void value")
+                        raise TypecheckError("Void function cannot return a non-void value", statement.pos)
             else:
                 if statement.expression is None:
-                    raise TypecheckError("Non-void function must return a value")
+                    raise TypecheckError("Non-void function must return a value", statement.pos)
                 actual_type = self._type_of_expression(statement.expression, env, current_class, allow_uninitialized_fields=in_constructor)
                 if not self._is_subtype(actual_type, expected_return_type):
                     raise TypecheckError(
-                        f"Return type mismatch: expected {self._type_name(expected_return_type)} but got {self._type_name(actual_type)}"
+                        f"Return type mismatch: expected {self._type_name(expected_return_type)} but got {self._type_name(actual_type)}",
+                        statement.pos,
                     )
             return env.copy()
 
@@ -309,7 +324,7 @@ class TypeChecker:
             self._type_of_expression(statement.expression, env, current_class, allow_uninitialized_fields=in_constructor)
             return env.copy()
 
-        raise TypecheckError(f"Unsupported statement: {statement}")
+        raise TypecheckError(f"Unsupported statement: {statement}", getattr(statement, "pos", None))
 
     def _type_of_expression(self, expression, env: TypeEnvironment, current_class: Optional[ClassInfo], allow_uninitialized_fields: bool = False):
         if isinstance(expression, IntLiteralExp):
@@ -320,63 +335,99 @@ class TypeChecker:
             return BooleanType()
         if isinstance(expression, ThisExp):
             if current_class is None:
-                raise TypecheckError("'this' can only be used inside a class method or constructor")
+                raise TypecheckError("'this' can only be used inside a class method or constructor", expression.pos)
             return ClassType(current_class.name)
         if isinstance(expression, VarExp):
             var_type, is_field = self._resolve_variable_type(expression.name, env, current_class)
             if not is_field and expression.name not in env.initialized:
-                raise TypecheckError(f"Variable '{expression.name}' may be used before it is initialized")
+                raise TypecheckError(f"Variable '{expression.name}' may be used before it is initialized", expression.pos)
             if is_field and allow_uninitialized_fields:
                 return var_type
             return var_type
         if isinstance(expression, PrintlnExp):
-            expr_type = self._type_of_expression(expression.expression, env, current_class, allow_uninitialized_fields)
-            allowed_type = (isinstance(expr_type, (IntType, BooleanType))
+            expr_type = self._type_of_expression(
+                expression.expression,
+                env,
+                current_class,
+                allow_uninitialized_fields,
+            )
+            allowed_type = (
+                isinstance(expr_type, (IntType, BooleanType))
                 or expr_type == ClassType("String")
             )
             if not allowed_type:
-            raise TypecheckError(f"println argument must be Int, Boolean, or String, got {expr_type}")
-    return VoidType()
+                raise TypecheckError(
+                    f"println argument must be Int, Boolean, or String, got {expr_type}",
+                    expression.pos,
+                )
+            return VoidType()
+
         if isinstance(expression, BinOpExp):
-            left_type = self._type_of_expression(expression.left, env, current_class, allow_uninitialized_fields)
-            right_type = self._type_of_expression(expression.right, env, current_class, allow_uninitialized_fields)
-            if expression.op in {"+", "-", "*", "/"}:
+            left_type = self._type_of_expression(
+                expression.left, env, current_class, allow_uninitialized_fields
+            )
+            right_type = self._type_of_expression(
+                expression.right, env, current_class, allow_uninitialized_fields
+            )
+
+            if isinstance(expression.op, (PlusOp, MinusOp, MultiplyOp, DivideOp)):
                 if not isinstance(left_type, IntType) or not isinstance(right_type, IntType):
-                    raise TypecheckError(f"Operator '{expression.op}' requires Int operands")
+                    raise TypecheckError(
+                        f"Operator '{self._operator_name(expression.op)}' requires Int operands",
+                        expression.pos,
+                    )
                 return IntType()
-            if expression.op == "<":
+
+            if isinstance(expression.op, LessThanOp):
                 if not isinstance(left_type, IntType) or not isinstance(right_type, IntType):
-                    raise TypecheckError("Operator '<' requires Int operands")
+                    raise TypecheckError(
+                        "Operator '<' requires Int operands",
+                        expression.pos,
+                    )
                 return BooleanType()
-            if expression.op == "==":
-                if not self._same_type(left_type, right_type) and not self._is_subtype(left_type, right_type) and not self._is_subtype(right_type, left_type):
-                    raise TypecheckError("Operator '==' requires compatible operand types")
+
+            if isinstance(expression.op, DoubleEqualsOp):
+                compatible = (
+                    self._same_type(left_type, right_type)
+                    or self._is_subtype(left_type, right_type)
+                    or self._is_subtype(right_type, left_type)
+                )
+                if not compatible:
+                    raise TypecheckError(
+                        "Operator '==' requires compatible operand types",
+                        expression.pos,
+                    )
                 return BooleanType()
-            raise TypecheckError(f"Unknown operator '{expression.op}'")
+
+            raise TypecheckError(
+                f"Unknown operator '{self._operator_name(expression.op)}'",
+                expression.pos,
+            )
         if isinstance(expression, NewExp):
             if expression.class_name not in self.classes:
-                raise TypecheckError(f"Cannot instantiate unknown class '{expression.class_name}'")
+                raise TypecheckError(f"Cannot instantiate unknown class '{expression.class_name}'", expression.pos)
             if expression.class_name == "String":
-                raise TypecheckError("Cannot instantiate built-in String with new")
+                raise TypecheckError("Cannot instantiate built-in String with new", expression.pos)
             constructor = self.classes[expression.class_name].constructor
             if len(expression.args) != len(constructor.params):
                 raise TypecheckError(
-                    f"Constructor for class '{expression.class_name}' expects {len(constructor.params)} argument(s)"
+                    f"Constructor for class '{expression.class_name}' expects {len(constructor.params)} argument(s)",
+                    expression.pos,
                 )
             for arg, param in zip(expression.args, constructor.params):
                 arg_type = self._type_of_expression(arg, env, current_class, allow_uninitialized_fields)
                 if not self._is_subtype(arg_type, param.var_type):
-                    raise TypecheckError(f"Constructor argument type mismatch for class '{expression.class_name}'")
+                    raise TypecheckError(f"Constructor argument type mismatch for class '{expression.class_name}'", expression.pos)
             return ClassType(expression.class_name)
         if isinstance(expression, CallExp):
             obj_type = self._type_of_expression(expression.obj, env, current_class, allow_uninitialized_fields)
             if not isinstance(obj_type, ClassType):
-                raise TypecheckError("Method calls require an object receiver")
+                raise TypecheckError("Method calls require an object receiver", expression.pos)
             if obj_type.name == "String":
-                raise TypecheckError("Built-in String does not support methods")
+                raise TypecheckError("Built-in String does not support methods", expression.pos)
             method = self._resolve_method(obj_type.name, expression.method_name, expression.args, env, current_class, allow_uninitialized_fields)
             return method.return_type
-        raise TypecheckError(f"Unsupported expression: {expression}")
+        raise TypecheckError(f"Unsupported expression: {expression}", getattr(expression, "pos", None))
 
     def _resolve_method(self, class_name: str, method_name: str, args, env, current_class, allow_uninitialized_fields):
         arg_types = [self._type_of_expression(arg, env, current_class, allow_uninitialized_fields) for arg in args]
@@ -468,6 +519,18 @@ class TypeChecker:
         if isinstance(type_node, ClassType):
             return type_node.name
         return str(type_node)
+
+
+    def _operator_name(self, operator):
+        names = {
+            PlusOp: "+",
+            MinusOp: "-",
+            MultiplyOp: "*",
+            DivideOp: "/",
+            LessThanOp: "<",
+            DoubleEqualsOp: "==",
+        }
+        return names.get(type(operator), str(operator))
 
     def _make_slot_name(self, method_name: str, params: List[object]):
         if not params:
