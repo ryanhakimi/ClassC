@@ -1,0 +1,16 @@
+(class Animal
+  ()
+  (init ())
+  (method speak () Void
+    (return (println 1))))
+
+(class Cat Animal
+  ()
+  (init ()
+    (super))
+  (method speak () Void
+    (return (println 2))))
+
+(vardec Animal pet)
+(= pet (new Cat))
+(call pet speak)

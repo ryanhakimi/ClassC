@@ -39,6 +39,120 @@ class CodeGenerator:
         self.current_class = None
         self.current_locals = {}
         self.current_self_name = "self"
+        self.instantiated_classes = self._find_instantiated_classes()
+        self.used_print_types = self._find_used_print_types()
+
+    def _find_instantiated_classes(self):
+        """Find all classes that are instantiated with (new ClassName) in the AST."""
+        instantiated = set()
+        
+        def scan_expression(expr):
+            if isinstance(expr, NewExp):
+                instantiated.add(expr.class_name)
+            elif isinstance(expr, BinOpExp):
+                scan_expression(expr.left)
+                scan_expression(expr.right)
+            elif isinstance(expr, PrintlnExp):
+                scan_expression(expr.expression)
+            elif isinstance(expr, CallExp):
+                scan_expression(expr.obj)
+                for arg in expr.args:
+                    scan_expression(arg)
+        
+        def scan_statement(stmt):
+            if isinstance(stmt, VarDecStmt):
+                pass
+            elif isinstance(stmt, AssignStmt):
+                scan_expression(stmt.expression)
+            elif isinstance(stmt, ExpStmt):
+                scan_expression(stmt.expression)
+            elif isinstance(stmt, ReturnStmt):
+                if stmt.expression is not None:
+                    scan_expression(stmt.expression)
+            elif isinstance(stmt, IfStmt):
+                scan_expression(stmt.condition)
+                scan_statement(stmt.then_stmt)
+                if stmt.else_stmt is not None:
+                    scan_statement(stmt.else_stmt)
+            elif isinstance(stmt, WhileStmt):
+                scan_expression(stmt.condition)
+                for body_stmt in stmt.body:
+                    scan_statement(body_stmt)
+            elif isinstance(stmt, BreakStmt):
+                pass
+        
+        # Scan all statements in main
+        for stmt in self.program.statements:
+            scan_statement(stmt)
+        
+        # Scan all constructor and method bodies
+        for class_def in self.program.classes:
+            for stmt in class_def.constructor.body:
+                scan_statement(stmt)
+            for method in class_def.methods:
+                for stmt in method.body:
+                    scan_statement(stmt)
+        
+        return instantiated
+
+    def _find_used_print_types(self):
+        """Find which print helper functions are actually used."""
+        used = set()
+        
+        def scan_expression(expr):
+            if isinstance(expr, PrintlnExp):
+                inner_type = self._infer_expression_type(expr.expression)
+                if isinstance(inner_type, IntType):
+                    used.add("int")
+                elif isinstance(inner_type, BooleanType):
+                    used.add("bool")
+                elif isinstance(inner_type, ClassType) and inner_type.name == "String":
+                    used.add("string")
+                else:
+                    used.add("object")
+            elif isinstance(expr, BinOpExp):
+                scan_expression(expr.left)
+                scan_expression(expr.right)
+            elif isinstance(expr, CallExp):
+                scan_expression(expr.obj)
+                for arg in expr.args:
+                    scan_expression(arg)
+        
+        def scan_statement(stmt):
+            if isinstance(stmt, VarDecStmt):
+                pass
+            elif isinstance(stmt, AssignStmt):
+                scan_expression(stmt.expression)
+            elif isinstance(stmt, ExpStmt):
+                scan_expression(stmt.expression)
+            elif isinstance(stmt, ReturnStmt):
+                if stmt.expression is not None:
+                    scan_expression(stmt.expression)
+            elif isinstance(stmt, IfStmt):
+                scan_expression(stmt.condition)
+                scan_statement(stmt.then_stmt)
+                if stmt.else_stmt is not None:
+                    scan_statement(stmt.else_stmt)
+            elif isinstance(stmt, WhileStmt):
+                scan_expression(stmt.condition)
+                for body_stmt in stmt.body:
+                    scan_statement(body_stmt)
+            elif isinstance(stmt, BreakStmt):
+                pass
+        
+        # Scan all statements in main
+        for stmt in self.program.statements:
+            scan_statement(stmt)
+        
+        # Scan all constructor and method bodies
+        for class_def in self.program.classes:
+            for stmt in class_def.constructor.body:
+                scan_statement(stmt)
+            for method in class_def.methods:
+                for stmt in method.body:
+                    scan_statement(stmt)
+        
+        return used
 
     def generate(self):
         self._emit_prelude()
@@ -66,30 +180,34 @@ class CodeGenerator:
         self._emit("struct Object_vtable { int _unused; };")
         self._emit("static Object_vtable Object_vtable_instance = {0};")
         self._emit("")
-        self._emit("static void ClassC_print_bool(bool value) {")
-        self.indent_level += 1
-        self._emit('printf("%s\\n", value ? "true" : "false");')
-        self.indent_level -= 1
-        self._emit("}")
-        self._emit("")
-        self._emit("static void ClassC_print_string(const char* value) {")
-        self.indent_level += 1
-        self._emit('printf("%s\\n", value);')
-        self.indent_level -= 1
-        self._emit("}")
-        self._emit("")
-        self._emit("static void ClassC_print_int(int value) {")
-        self.indent_level += 1
-        self._emit('printf("%d\\n", value);')
-        self.indent_level -= 1
-        self._emit("}")
-        self._emit("")
-        self._emit("static void ClassC_print_object(void* value) {")
-        self.indent_level += 1
-        self._emit('printf("%p\\n", value);')
-        self.indent_level -= 1
-        self._emit("}")
-        self._emit("")
+        if "bool" in self.used_print_types:
+            self._emit("static void ClassC_print_bool(bool value) {")
+            self.indent_level += 1
+            self._emit('printf("%s\\n", value ? "true" : "false");')
+            self.indent_level -= 1
+            self._emit("}")
+            self._emit("")
+        if "string" in self.used_print_types:
+            self._emit("static void ClassC_print_string(const char* value) {")
+            self.indent_level += 1
+            self._emit('printf("%s\\n", value);')
+            self.indent_level -= 1
+            self._emit("}")
+            self._emit("")
+        if "int" in self.used_print_types:
+            self._emit("static void ClassC_print_int(int value) {")
+            self.indent_level += 1
+            self._emit('printf("%d\\n", value);')
+            self.indent_level -= 1
+            self._emit("}")
+            self._emit("")
+        if "object" in self.used_print_types:
+            self._emit("static void ClassC_print_object(void* value) {")
+            self.indent_level += 1
+            self._emit('printf("%p\\n", value);')
+            self.indent_level -= 1
+            self._emit("}")
+            self._emit("")
 
     def _emit_forward_declarations(self):
         for class_def in self.program.classes:
@@ -129,7 +247,8 @@ class CodeGenerator:
             class_name = class_def.name
             ctor = self.classes[class_name].constructor
             self._emit(f"static void {class_name}_init({class_name}* self{self._param_list(ctor.params)});")
-            self._emit(f"static {class_name}* new_{class_name}({self._param_decl_list(ctor.params)});")
+            if class_name in self.instantiated_classes:
+                self._emit(f"static {class_name}* new_{class_name}({self._param_decl_list(ctor.params)});")
             for method_def in class_def.methods:
                 info = self.classes[class_name].methods[self._signature_for_methoddef(class_name, method_def)]
                 slot_owner = self._slot_owner(class_name, info.signature)
@@ -162,45 +281,30 @@ class CodeGenerator:
         return "{" + ", ".join(parts) + "}"
 
     def _emit_constructors(self):
-        for class_def in self.program.classes:
-            class_name = class_def.name
-            class_info = self.classes[class_name]
-            ctor = class_info.constructor
+        for class_name, class_info in self.typed_program.classes.items():
+            constructor = class_info.constructor
+            params = self._param_decl_list(constructor.params)
+            self._emit(f"void {class_name}_init({class_name}* self{params})")
+            self._emit("{")
 
-            self._emit(f"static void {class_name}_init({class_name}* self{self._param_list(ctor.params)}) {{")
-            self.indent_level += 1
-            self.current_class = class_name
-            self.current_locals = {param.var_name: param.var_type for param in ctor.params}
-            self.current_self_name = "self"
-            parent = class_info.parent or "Object"
-            if parent != "Object":
-                args = ", ".join(self._compile_expression(arg) for arg in (ctor.super_args or []))
-                if args:
-                    self._emit(f"{parent}_init(({parent}*) self, {args});")
-                else:
-                    self._emit(f"{parent}_init(({parent}*) self);")
-            else:
-                self._emit("self->super.vtable = &Object_vtable_instance;")
-            self._emit(f"{self._object_vtable_lvalue(class_name, 'self')} = (Object_vtable*) &{class_name}_vtable_instance;")
-            for statement in ctor.body:
+            # Initialize all fields to 0
+            for field_name in class_info.fields:
+                self._emit(f"  self->{field_name} = 0;")
+
+            # Initialize parent vtables
+            parent = class_info.parent
+            while parent is not None:
+                parent_info = self.typed_program.classes[parent]
+                self._emit(f"  ((({parent}*) self)->vtable) = &{parent}_vtable_instance;")
+                parent = parent_info.parent
+
+            # Initialize this class's vtable
+            self._emit(f"  self->vtable = &{class_name}_vtable_instance;")
+
+            # Call body
+            for statement in constructor.body:
                 self._emit_statement(statement)
-            self.indent_level -= 1
-            self._emit("}")
-            self._emit("")
 
-            self._emit(f"static {class_name}* new_{class_name}({self._param_decl_list(ctor.params)}) {{")
-            self.indent_level += 1
-            self._emit(f"{class_name}* self = ({class_name}*) malloc(sizeof({class_name}));")
-            self._emit("if (self == NULL) {")
-            self.indent_level += 1
-            self._emit('fprintf(stderr, "Out of memory\\n");')
-            self._emit("exit(1);")
-            self.indent_level -= 1
-            self._emit("}")
-            args = ", ".join(param.var_name for param in ctor.params)
-            self._emit(f"{class_name}_init(self{', ' + args if args else ''});")
-            self._emit("return self;")
-            self.indent_level -= 1
             self._emit("}")
             self._emit("")
 
@@ -220,7 +324,7 @@ class CodeGenerator:
                 self.current_self_name = "self"
                 if slot_owner != class_name:
                     self.current_self_name = "self_this"
-                    self._emit(f"{class_name}* self_this = ({class_name}*) self;")
+                    self._emit("(void) self_this;  // silence -Wunused-variable")
                 for statement in method_def.body:
                     self._emit_statement(statement)
                 if isinstance(method_def.return_type, VoidType) and (not method_def.body or not isinstance(method_def.body[-1], ReturnStmt)):
@@ -480,7 +584,13 @@ class CodeGenerator:
         return owner
 
     def _signature_for_methoddef(self, class_name, method_def):
-        return next(signature for signature, info in self.classes[class_name].methods.items() if info.name == method_def.name and len(info.params) == len(method_def.params) and all(type_key(param.var_type) == type_key(info_param) for param, info_param in zip(method_def.params, info.params)))
+        for signature, info in self.classes[class_name].methods.items():
+            if (info.name == method_def.name and 
+                len(info.params) == len(method_def.params) and 
+                all(type_key(param.var_type) == type_key(info_param) 
+                    for param, info_param in zip(method_def.params, info.params))):
+                return signature
+        raise CodegenError(f"Method signature not found for {method_def.name}")
 
     def _c_type(self, type_node):
         if isinstance(type_node, IntType):
