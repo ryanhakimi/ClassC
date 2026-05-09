@@ -97,23 +97,23 @@ class FalseExp:
 
 @dataclass
 class PrintlnExp:
-    expression: object
+    expression: "Expression"
     pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class BinOpExp:
     op: object
-    left: object
-    right: object
+    left: "Expression"
+    right: "Expression"
     pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class CallExp:
-    obj: object
+    obj: "Expression"
     method_name: str
-    args: list
+    args: List["Expression"]
     pos: Optional[Pos] = field(default=None, compare=False)
 
 
@@ -127,7 +127,7 @@ class NewExp:
 # AST node types for statements
 @dataclass
 class VarDecStmt:
-    var_type: object
+    var_type: "TypeNode"
     var_name: str
     pos: Optional[Pos] = field(default=None, compare=False)
 
@@ -135,13 +135,13 @@ class VarDecStmt:
 @dataclass
 class AssignStmt:
     var_name: str
-    expression: object
+    expression: "Expression"
     pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class WhileStmt:
-    condition: object
+    condition: "Expression"
     body: list
     pos: Optional[Pos] = field(default=None, compare=False)
 
@@ -153,21 +153,21 @@ class BreakStmt:
 
 @dataclass
 class IfStmt:
-    condition: object
-    then_stmt: object
-    else_stmt: object
+    condition: "Expression"
+    then_stmt: "Statement"
+    else_stmt: Optional["Statement"]
     pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class ReturnStmt:
-    expression: object
+    expression: Optional["Expression"]
     pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class ExpStmt:
-    expression: object
+    expression: "Expression"
     pos: Optional[Pos] = field(default=None, compare=False)
 
 
@@ -176,7 +176,7 @@ class ExpStmt:
 class MethodDef:
     name: str
     params: list
-    return_type: object
+    return_type: "TypeNode"
     body: list
     pos: Optional[Pos] = field(default=None, compare=False)
 
@@ -184,7 +184,7 @@ class MethodDef:
 @dataclass
 class Constructor:
     params: list
-    super_args: object
+    super_args: Optional[List["Expression"]]
     body: list
     pos: Optional[Pos] = field(default=None, compare=False)
 
@@ -192,9 +192,9 @@ class Constructor:
 @dataclass
 class ClassDef:
     name: str
-    parent: object
+    parent: Optional[str]
     fields: list
-    constructor: object
+    constructor: Constructor
     methods: list
     pos: Optional[Pos] = field(default=None, compare=False)
 
@@ -204,6 +204,31 @@ class Program:
     classes: list
     statements: list
     pos: Optional[Pos] = field(default=None, compare=False)
+
+TypeNode = IntType | BooleanType | VoidType | ClassType
+
+Expression = (
+    IntLiteralExp
+    | StringLiteralExp
+    | VarExp
+    | ThisExp
+    | TrueExp
+    | FalseExp
+    | PrintlnExp
+    | BinOpExp
+    | CallExp
+    | NewExp
+)
+
+Statement = (
+    VarDecStmt
+    | AssignStmt
+    | WhileStmt
+    | BreakStmt
+    | IfStmt
+    | ReturnStmt
+    | ExpStmt
+)
 
 
 class ParseError(Exception):
