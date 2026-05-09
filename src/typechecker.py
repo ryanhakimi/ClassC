@@ -340,8 +340,6 @@ class TypeChecker:
             var_type, is_field = self._resolve_variable_type(expression.name, env, current_class)
             if not is_field and expression.name not in env.initialized:
                 raise TypecheckError(f"Variable '{expression.name}' may be used before it is initialized", expression.pos)
-            if is_field and allow_uninitialized_fields:
-                return var_type
             return var_type
         if isinstance(expression, PrintlnExp):
             expr_type = self._type_of_expression(
