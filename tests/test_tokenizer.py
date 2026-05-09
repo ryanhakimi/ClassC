@@ -117,3 +117,20 @@ def test_class_definition_from_spec():
     assert TokenType.PRINTLN in types
     assert TokenType.INTEGER_LITERAL in types
     assert TokenType.VOID_TYPE in types
+
+# Line comment handling
+
+def test_line_comments_are_ignored():
+    tokens = tokenize("""
+    // this is a comment
+    (println 42)
+    """)
+
+    token_types = [token.token_type for token in tokens]
+
+    assert token_types == [
+        TokenType.LEFT_PAREN,
+        TokenType.PRINTLN,
+        TokenType.INTEGER_LITERAL,
+        TokenType.RIGHT_PAREN,
+    ]
