@@ -330,8 +330,13 @@ class TypeChecker:
                 return var_type
             return var_type
         if isinstance(expression, PrintlnExp):
-            self._type_of_expression(expression.expression, env, current_class, allow_uninitialized_fields)
-            return VoidType()
+            expr_type = self._type_of_expression(expression.expression, env, current_class, allow_uninitialized_fields)
+            allowed_type = (isinstance(expr_type, (IntType, BooleanType))
+                or expr_type == ClassType("String")
+            )
+            if not allowed_type:
+            raise TypecheckError(f"println argument must be Int, Boolean, or String, got {expr_type}")
+    return VoidType()
         if isinstance(expression, BinOpExp):
             left_type = self._type_of_expression(expression.left, env, current_class, allow_uninitialized_fields)
             right_type = self._type_of_expression(expression.right, env, current_class, allow_uninitialized_fields)
