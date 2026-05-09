@@ -116,4 +116,17 @@ def test_typecheck_rejects_break_outside_loop():
 
 def test_typecheck_supports_string_literals():
     source = '(println "hello")'
+
+def test_typecheck_rejects_println_object():
+    source = """
+    (class Animal
+      ()
+      (init ()))
+
+    (vardec Animal a)
+    (= a (new Animal))
+    (println a)
+    """
+    with pytest.raises(TypecheckError, match="println"):
+        typecheck(source)
     typecheck(source)
