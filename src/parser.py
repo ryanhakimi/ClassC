@@ -24,6 +24,34 @@ class ClassType:
     name: str
 
 
+@dataclass(frozen=True)
+class PlusOp:
+    pass
+
+
+@dataclass(frozen=True)
+class MinusOp:
+    pass
+
+
+@dataclass(frozen=True)
+class MultiplyOp:
+    pass
+
+
+@dataclass(frozen=True)
+class DivideOp:
+    pass
+
+
+@dataclass(frozen=True)
+class LessThanOp:
+    pass
+
+
+@dataclass(frozen=True)
+class DoubleEqualsOp:
+    pass
 # AST node types for expressions
 @dataclass
 class IntLiteralExp:
@@ -62,7 +90,7 @@ class PrintlnExp:
 
 @dataclass
 class BinOpExp:
-    op: str
+    op: object
     left: object
     right: object
 
@@ -280,11 +308,19 @@ class Parser:
             TokenType.LESS_THAN,
             TokenType.DOUBLE_EQUALS,
         ):
-            op = self.advance().value
+            operator_token = self.advance()
+            operators = {
+                TokenType.PLUS: PlusOp(),
+                TokenType.MINUS: MinusOp(),
+                TokenType.MULTIPLY: MultiplyOp(),
+                TokenType.DIVIDE: DivideOp(),
+                TokenType.LESS_THAN: LessThanOp(),
+                TokenType.DOUBLE_EQUALS: DoubleEqualsOp(),
+            }
             left = self.parse_expression()
             right = self.parse_expression()
             self.expect(TokenType.RIGHT_PAREN)
-            return BinOpExp(op, left, right)
+        return BinOpExp(operators[operator_token.token_type], left, right)
         else:
             raise ParseError(
                 f"Expected println, call, new, or operator after '(' "
