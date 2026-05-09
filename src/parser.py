@@ -1,91 +1,104 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 from tokenizer import Token, TokenType, tokenize
+
+
+@dataclass(frozen=True)
+class Pos:
+    line: int
+    col: int
 
 
 # AST node types for representing types in the language
 @dataclass
 class IntType:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class BooleanType:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class VoidType:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class ClassType:
     name: str
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
 class PlusOp:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
 class MinusOp:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
 class MultiplyOp:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
 class DivideOp:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
 class LessThanOp:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
 class DoubleEqualsOp:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
+
+
 # AST node types for expressions
 @dataclass
 class IntLiteralExp:
     value: int
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class StringLiteralExp:
     value: str
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class VarExp:
     name: str
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class ThisExp:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class TrueExp:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class FalseExp:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class PrintlnExp:
     expression: object
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
@@ -93,6 +106,7 @@ class BinOpExp:
     op: object
     left: object
     right: object
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
@@ -100,12 +114,14 @@ class CallExp:
     obj: object
     method_name: str
     args: list
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class NewExp:
     class_name: str
     args: list
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 # AST node types for statements
@@ -113,23 +129,26 @@ class NewExp:
 class VarDecStmt:
     var_type: object
     var_name: str
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class AssignStmt:
     var_name: str
     expression: object
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class WhileStmt:
     condition: object
     body: list
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class BreakStmt:
-    pass
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
@@ -137,16 +156,19 @@ class IfStmt:
     condition: object
     then_stmt: object
     else_stmt: object
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class ReturnStmt:
     expression: object
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class ExpStmt:
     expression: object
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 # AST node types for top-level definitions
@@ -156,6 +178,7 @@ class MethodDef:
     params: list
     return_type: object
     body: list
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
@@ -163,6 +186,7 @@ class Constructor:
     params: list
     super_args: object
     body: list
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
@@ -172,12 +196,14 @@ class ClassDef:
     fields: list
     constructor: object
     methods: list
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 @dataclass
 class Program:
     classes: list
     statements: list
+    pos: Optional[Pos] = field(default=None, compare=False)
 
 
 class ParseError(Exception):
@@ -195,6 +221,9 @@ class Parser:
     def __init__(self, tokens: List[Token]):
         self.tokens = tokens
         self.pos = 0
+
+    def _pos_from_token(self, token: Token) -> Pos:
+        return Pos(token.line, token.col)
 
     def peek(self) -> Optional[Token]:
         if self.pos < len(self.tokens):
@@ -223,18 +252,20 @@ class Parser:
         token = self.peek()
         if token is None:
             raise ParseError("Expected type but reached end of input")
+
+        pos = self._pos_from_token(token)
         if token.token_type == TokenType.INT_TYPE:
             self.advance()
-            return IntType()
+            return IntType(pos)
         elif token.token_type == TokenType.BOOLEAN_TYPE:
             self.advance()
-            return BooleanType()
+            return BooleanType(pos)
         elif token.token_type == TokenType.VOID_TYPE:
             self.advance()
-            return VoidType()
+            return VoidType(pos)
         elif token.token_type == TokenType.IDENTIFIER:
             self.advance()
-            return ClassType(token.value)
+            return ClassType(token.value, pos)
         else:
             raise ParseError(
                 f"Expected type but got {token.token_type.name}", token
@@ -245,24 +276,25 @@ class Parser:
         if token is None:
             raise ParseError("Expected expression but reached end of input")
 
+        pos = self._pos_from_token(token)
         if token.token_type == TokenType.INTEGER_LITERAL:
             self.advance()
-            return IntLiteralExp(int(token.value))
+            return IntLiteralExp(int(token.value), pos)
         elif token.token_type == TokenType.STRING_LITERAL:
             self.advance()
-            return StringLiteralExp(token.value)
+            return StringLiteralExp(token.value, pos)
         elif token.token_type == TokenType.IDENTIFIER:
             self.advance()
-            return VarExp(token.value)
+            return VarExp(token.value, pos)
         elif token.token_type == TokenType.THIS:
             self.advance()
-            return ThisExp()
+            return ThisExp(pos)
         elif token.token_type == TokenType.TRUE:
             self.advance()
-            return TrueExp()
+            return TrueExp(pos)
         elif token.token_type == TokenType.FALSE:
             self.advance()
-            return FalseExp()
+            return FalseExp(pos)
         elif token.token_type == TokenType.LEFT_PAREN:
             return self._parse_paren_expression()
         else:
@@ -271,7 +303,8 @@ class Parser:
             )
 
     def _parse_paren_expression(self):
-        self.expect(TokenType.LEFT_PAREN)
+        start_token = self.expect(TokenType.LEFT_PAREN)
+        start_pos = self._pos_from_token(start_token)
         token = self.peek()
         if token is None:
             raise ParseError(
@@ -282,7 +315,7 @@ class Parser:
             self.advance()
             exp = self.parse_expression()
             self.expect(TokenType.RIGHT_PAREN)
-            return PrintlnExp(exp)
+            return PrintlnExp(exp, start_pos)
         elif token.token_type == TokenType.CALL:
             self.advance()
             obj = self.parse_expression()
@@ -291,7 +324,7 @@ class Parser:
             while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
                 args.append(self.parse_expression())
             self.expect(TokenType.RIGHT_PAREN)
-            return CallExp(obj, method_name, args)
+            return CallExp(obj, method_name, args, start_pos)
         elif token.token_type == TokenType.NEW:
             self.advance()
             class_name = self.expect(TokenType.IDENTIFIER).value
@@ -299,7 +332,7 @@ class Parser:
             while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
                 args.append(self.parse_expression())
             self.expect(TokenType.RIGHT_PAREN)
-            return NewExp(class_name, args)
+            return NewExp(class_name, args, start_pos)
         elif token.token_type in (
             TokenType.PLUS,
             TokenType.MINUS,
@@ -309,18 +342,19 @@ class Parser:
             TokenType.DOUBLE_EQUALS,
         ):
             operator_token = self.advance()
+            operator_pos = self._pos_from_token(operator_token)
             operators = {
-                TokenType.PLUS: PlusOp(),
-                TokenType.MINUS: MinusOp(),
-                TokenType.MULTIPLY: MultiplyOp(),
-                TokenType.DIVIDE: DivideOp(),
-                TokenType.LESS_THAN: LessThanOp(),
-                TokenType.DOUBLE_EQUALS: DoubleEqualsOp(),
+                TokenType.PLUS: PlusOp(operator_pos),
+                TokenType.MINUS: MinusOp(operator_pos),
+                TokenType.MULTIPLY: MultiplyOp(operator_pos),
+                TokenType.DIVIDE: DivideOp(operator_pos),
+                TokenType.LESS_THAN: LessThanOp(operator_pos),
+                TokenType.DOUBLE_EQUALS: DoubleEqualsOp(operator_pos),
             }
             left = self.parse_expression()
             right = self.parse_expression()
             self.expect(TokenType.RIGHT_PAREN)
-        return BinOpExp(operators[operator_token.token_type], left, right)
+            return BinOpExp(operators[operator_token.token_type], left, right, start_pos)
         else:
             raise ParseError(
                 f"Expected println, call, new, or operator after '(' "
@@ -329,12 +363,13 @@ class Parser:
             )
 
     def parse_vardec(self) -> VarDecStmt:
-        self.expect(TokenType.LEFT_PAREN)
+        start_token = self.expect(TokenType.LEFT_PAREN)
+        start_pos = self._pos_from_token(start_token)
         self.expect(TokenType.VARDEC)
         var_type = self.parse_type()
         var_name = self.expect(TokenType.IDENTIFIER).value
         self.expect(TokenType.RIGHT_PAREN)
-        return VarDecStmt(var_type, var_name)
+        return VarDecStmt(var_type, var_name, start_pos)
 
     def parse_statement(self):
         token = self.peek()
@@ -343,7 +378,7 @@ class Parser:
 
         if token.token_type == TokenType.BREAK:
             self.advance()
-            return BreakStmt()
+            return BreakStmt(self._pos_from_token(token))
         elif token.token_type == TokenType.LEFT_PAREN:
             if self.pos + 1 >= len(self.tokens):
                 raise ParseError(
@@ -364,32 +399,35 @@ class Parser:
                 return self._parse_return()
             else:
                 exp = self.parse_expression()
-                return ExpStmt(exp)
+                return ExpStmt(exp, exp.pos)
         else:
             raise ParseError(
                 f"Expected statement but got {token.token_type.name}", token
             )
 
     def _parse_assignment(self) -> AssignStmt:
-        self.expect(TokenType.LEFT_PAREN)
+        start_token = self.expect(TokenType.LEFT_PAREN)
+        start_pos = self._pos_from_token(start_token)
         self.expect(TokenType.ASSIGN)
         var_name = self.expect(TokenType.IDENTIFIER).value
         exp = self.parse_expression()
         self.expect(TokenType.RIGHT_PAREN)
-        return AssignStmt(var_name, exp)
+        return AssignStmt(var_name, exp, start_pos)
 
     def _parse_while(self) -> WhileStmt:
-        self.expect(TokenType.LEFT_PAREN)
+        start_token = self.expect(TokenType.LEFT_PAREN)
+        start_pos = self._pos_from_token(start_token)
         self.expect(TokenType.WHILE)
         condition = self.parse_expression()
         body = []
         while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
             body.append(self.parse_statement())
         self.expect(TokenType.RIGHT_PAREN)
-        return WhileStmt(condition, body)
+        return WhileStmt(condition, body, start_pos)
 
     def _parse_if(self) -> IfStmt:
-        self.expect(TokenType.LEFT_PAREN)
+        start_token = self.expect(TokenType.LEFT_PAREN)
+        start_pos = self._pos_from_token(start_token)
         self.expect(TokenType.IF)
         condition = self.parse_expression()
         then_stmt = self.parse_statement()
@@ -397,19 +435,21 @@ class Parser:
         if self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
             else_stmt = self.parse_statement()
         self.expect(TokenType.RIGHT_PAREN)
-        return IfStmt(condition, then_stmt, else_stmt)
+        return IfStmt(condition, then_stmt, else_stmt, start_pos)
 
     def _parse_return(self) -> ReturnStmt:
-        self.expect(TokenType.LEFT_PAREN)
+        start_token = self.expect(TokenType.LEFT_PAREN)
+        start_pos = self._pos_from_token(start_token)
         self.expect(TokenType.RETURN)
         exp = None
         if self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
             exp = self.parse_expression()
         self.expect(TokenType.RIGHT_PAREN)
-        return ReturnStmt(exp)
+        return ReturnStmt(exp, start_pos)
 
     def parse_method(self) -> MethodDef:
-        self.expect(TokenType.LEFT_PAREN)
+        start_token = self.expect(TokenType.LEFT_PAREN)
+        start_pos = self._pos_from_token(start_token)
         self.expect(TokenType.METHOD)
         method_name = self.expect(TokenType.IDENTIFIER).value
         self.expect(TokenType.LEFT_PAREN)
@@ -422,10 +462,11 @@ class Parser:
         while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
             body.append(self.parse_statement())
         self.expect(TokenType.RIGHT_PAREN)
-        return MethodDef(method_name, params, return_type, body)
+        return MethodDef(method_name, params, return_type, body, start_pos)
 
     def parse_constructor(self) -> Constructor:
-        self.expect(TokenType.LEFT_PAREN)
+        start_token = self.expect(TokenType.LEFT_PAREN)
+        start_pos = self._pos_from_token(start_token)
         self.expect(TokenType.INIT)
         self.expect(TokenType.LEFT_PAREN)
         params = []
@@ -449,10 +490,11 @@ class Parser:
         while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
             body.append(self.parse_statement())
         self.expect(TokenType.RIGHT_PAREN)
-        return Constructor(params, super_args, body)
+        return Constructor(params, super_args, body, start_pos)
 
     def parse_class(self) -> ClassDef:
-        self.expect(TokenType.LEFT_PAREN)
+        start_token = self.expect(TokenType.LEFT_PAREN)
+        start_pos = self._pos_from_token(start_token)
         self.expect(TokenType.CLASS)
         class_name = self.expect(TokenType.IDENTIFIER).value
         parent = None
@@ -468,9 +510,10 @@ class Parser:
         while self.peek() and self.peek().token_type != TokenType.RIGHT_PAREN:
             methods.append(self.parse_method())
         self.expect(TokenType.RIGHT_PAREN)
-        return ClassDef(class_name, parent, fields, constructor, methods)
+        return ClassDef(class_name, parent, fields, constructor, methods, start_pos)
 
     def parse_program(self) -> Program:
+        start_token = self.peek()
         classes = []
         while (
             self.peek()
@@ -484,7 +527,8 @@ class Parser:
             statements.append(self.parse_statement())
         if not statements:
             raise ParseError("Program must have at least one statement")
-        return Program(classes, statements)
+        program_pos = self._pos_from_token(start_token) if start_token else None
+        return Program(classes, statements, program_pos)
 
 
 def parse(source: str) -> Program:
