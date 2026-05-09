@@ -117,8 +117,21 @@ class Tokenizer:
         return ch
 
     def skip_whitespace(self):
-        while self.pos < len(self.source) and self.source[self.pos] in " \t\n\r":
+    while self.pos < len(self.source):
+        if self.source[self.pos] in " \t\n\r":
             self.advance()
+        elif (
+            self.source[self.pos] == "/"
+            and self.pos + 1 < len(self.source)
+            and self.source[self.pos + 1] == "/"
+        ):
+            while (
+                self.pos < len(self.source)
+                and self.source[self.pos] != "\n"
+            ):
+                self.advance()
+        else:
+            break
 
     def read_integer(self) -> Token:
         start_line = self.line
