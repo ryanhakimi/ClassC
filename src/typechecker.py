@@ -74,7 +74,7 @@ class TypedProgram:
     classes: Dict[str, ClassInfo]
 
 
-class TypecheckError(Exception):
+class IllTypedException(Exception):
     def __init__(self, message: str, pos=None):
         if pos is not None:
             super().__init__(
@@ -82,9 +82,8 @@ class TypecheckError(Exception):
             )
         else:
             super().__init__(f"Typecheck error: {message}")
-
         self.pos = pos
-
+TypecheckError = IllTypedException
 
 class TypeEnvironment:
     def __init__(self, variables=None, initialized=None, inside_loop=False):
