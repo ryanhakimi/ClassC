@@ -59,18 +59,18 @@ The repo includes `examples/animals.classc`:
   ()
   (init ())
   (method speak () Void
-    (return (println 1))))
+    (return (println 1))))   // Animal.speak prints: 1
 
 (class Cat Animal
   ()
   (init ()
     (super))
   (method speak () Void
-    (return (println 2))))
+    (return (println 2))))   // Cat.speak prints: 2
 
 (vardec Animal pet)
-(= pet (new Cat))
-(call pet speak)
+(= pet (new Cat))            // pet is declared as Animal but holds a Cat
+(call pet speak)             // virtual dispatch → Cat.speak runs → prints: 2
 ```
 
 Compile and run:
