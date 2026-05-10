@@ -1,0 +1,55 @@
+(class Box
+  ((vardec Int n))
+  (init ((vardec Int start))
+    (= n start))
+  (method get () Int
+    (return n))
+  (method put ((vardec Int v)) Void
+    (= n v))
+  (method add ((vardec Int delta)) Void
+    (= n (+ n delta)))
+  (method classify () Int
+    (if (< n 0)
+      (return (- 0 1))
+      (if (== n 0)
+        (return 0)
+        (return 1)))))
+
+(class CountingBox Box
+  ((vardec Int hits))
+  (init ((vardec Int start))
+    (super start)
+    (= hits 0))
+  (method touch () Int
+    (= hits (+ hits 1))
+    (return hits))
+  (method total () Int
+    (return (+ hits n))))
+
+(vardec Box b)
+(= b (new Box 7))
+(call b add 3)
+(println (call b get))
+(println (call b classify))
+(call b put (- 0 5))
+(println (call b classify))
+(call b put 0)
+(println (call b classify))
+(println (* 6 7))
+(println (/ 100 4))
+(println (== 5 5))
+(println (< 3 7))
+(println "done")
+
+(vardec CountingBox cb)
+(= cb (new CountingBox 10))
+(println (call cb touch))
+(println (call cb touch))
+
+(vardec Int i)
+(= i 0)
+(while (< i 3)
+  (call cb touch)
+  (= i (+ i 1)))
+(println (call cb touch))
+(println (call cb total))
