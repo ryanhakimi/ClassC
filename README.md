@@ -52,21 +52,21 @@ python src/compiler.py compile    program.classc out.c    # emit C
 
 ## End-to-End Example
 
-Save as `examples/animals.classc`:
+The repo includes `examples/animals.classc`:
 
 ```lisp
 (class Animal
   ()
   (init ())
   (method speak () Void
-    (return (println 0))))
+    (return (println 1))))
 
 (class Cat Animal
   ()
   (init ()
     (super))
   (method speak () Void
-    (return (println 1))))
+    (return (println 2))))
 
 (vardec Animal pet)
 (= pet (new Cat))
